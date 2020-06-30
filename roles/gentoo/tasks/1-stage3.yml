@@ -1,0 +1,55 @@
+# Get Stage 3
+- name: Get latest Stage3 url
+  shell: curl http://distfiles.gentoo.org/releases/amd64/autobuilds/latest-stage3.txt | grep "stage3-amd64-[0-9]" | cut -d" " -f1
+  register: stage3_path
+- set_fact:
+    latest_stage3: "http://distfiles.gentoo.org/releases/amd64/autobuilds/{{ stage3_path.stdout }}"
+- debug: var=latest_stage3
+
+# - name: Download Stage3 tarball
+#   get_url:
+#     url: "{{ latest_stage3 }}"
+#     dest: /mnt/gentoo/stage3.tar.xz
+#     # mode: '0440'
+#   tags:
+#     - stage3
+
+- name: Create /mnt/gentoo folder
+  file:
+    path: /mnt/gentoo
+    state: directory
+    # mode: '0755'
+
+- name: Download Stage3 tarball and unarchive
+  unarchive:
+    src: "{{ latest_stage3 }}"
+    dest: /mnt/gentoo/
+    creates: /mnt/gentoo/usr
+    remote_src: yes
+    extra_opts:
+    - --xattrs-include='*.*'
+    - --numeric-owner
+  tags:
+    - stage3
+
+
+# - name: Create /mnt/rawroot
+#   file:
+#     path: /mnt/rawroot
+#     state: directory
+#     # mode: '0755'
+
+# - name: Mount and bind /
+#   mount:
+#     path: /mnt/rawroot
+#     src: /
+#     opts: bind
+#     state: mounted
+#     fstype: none
+
+# - name: Hot copy Stage3 /
+#   command: chdir=/mnt/rawroot tar cvpf - . | (cd /mnt/newroot; tar xpf -)
+
+# - name: Hot copy Stage3 /
+#   command: chdir=/mnt/gentoo tar cvpf - . | (cd /mnt/newroot; tar xpf -)
+

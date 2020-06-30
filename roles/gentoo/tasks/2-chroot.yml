@@ -1,0 +1,88 @@
+# - name: Mount and bind proc for chroot
+#   mount:
+#     path: /mnt/gentoo/proc
+#     src: /proc
+#     opts: --types proc
+#     state: mounted
+#     fstype: proc
+#   tags:
+#     - pre-chroot
+
+# - name: Mount and bind /sys for chroot
+#   mount:
+#     path: /mnt/gentoo/sys
+#     src: /sys
+#     opts: --rbind
+#     state: mounted
+#     fstype: none
+#   tags:
+#     - pre-chroot
+
+# - name: Mount and bind /sys for chroot using --make-rslave
+#   mount:
+#     path: /mnt/gentoo/sys
+#     src: /sys
+#     opts: --make-rslave
+#     state: mounted
+#     fstype: none
+#   tags:
+#     - pre-chroot
+
+# - name: Mount and bind /dev for chroot
+#   mount:
+#     path: /mnt/gentoo/dev
+#     src: /dev
+#     opts: --rbind
+#     state: mounted
+#     fstype: none
+#   tags:
+#     - pre-chroot
+
+# - name: Mount and bind /dev for chroot using --make-rslave
+#   mount:
+#     path: /mnt/gentoo/dev
+#     src: /dev
+#     opts: --make-rslave
+#     state: mounted
+#     fstype: none
+#   tags:
+#     - pre-chroot
+
+
+- name: Mount and bind proc for chroot
+  command: mount --types proc proc /mnt/gentoo/proc creates=/mnt/gentoo/proc/zoneinfo
+  tags:
+    - pre-chroot
+
+- name: Mount and bind /sys for chroot
+  command: mount --rbind /sys /mnt/gentoo/sys creates=/mnt/gentoo/sys/dev
+  tags:
+    - pre-chroot
+
+- name: Mount and bind /dev for chroot
+  command: mount --rbind /dev /mnt/gentoo/dev creates=/mnt/gentoo/dev/zero
+  tags:
+    - pre-chroot
+
+- name: Copy /etc/resolv.conf
+  command: cp --dereference /etc/resolv.conf /mnt/gentoo/etc/
+  tags:
+    - pre-chroot
+
+
+#TODO: This is required for systemd
+# - name: Mount and bind /dev for systemd support
+#   command: mount --make-rslave /mnt/gentoo/dev
+#   tags:
+#     - pre-chroot
+# - name: Mount and bind /sys for systemd support
+#   command: mount --make-rslave /mnt/gentoo/sys
+#   tags:
+#     - pre-chroot
+
+
+#TODO: This doesnot work in system image
+# - name: Select mirror
+#   command: mirrorselect -i -o >> /mnt/gentoo/etc/portage/make.conf
+#   tags:
+#     - pre-chroot

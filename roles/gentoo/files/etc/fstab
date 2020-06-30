@@ -1,0 +1,3 @@
+LABEL=system    /                   btrfs    defaults,noatime,compress=lzo,autodefrag,subvol=activeroot    0 0
+LABEL=system    /home               btrfs    defaults,noatime,compress=lzo,autodefrag,subvol=home    0 0
+LABEL=system    /boot               btrfs    defaults,noatime,subvol=boot    0 0

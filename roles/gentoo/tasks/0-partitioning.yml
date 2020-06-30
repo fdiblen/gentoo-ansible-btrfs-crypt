@@ -1,0 +1,147 @@
+#TODO: change key size
+
+- name: Generate secretkey locally
+  command: dd if=/dev/random of=/data/secretkey bs=1 count=1024
+  args:
+    creates: /data/secretkey
+  delegate_to: 127.0.0.1
+
+- name: Copy secretkey to the remote system
+  copy:
+    src: /data/secretkey
+    dest: /mnt/secretkey
+    # owner: root
+    # group: root
+    # mode: '0400'
+
+- name: Read device information
+  parted: device="{{ disk_name }}" unit=MiB
+  register: disk_info
+
+- name: Remove all partitions from disk
+  parted:
+    device: "{{ disk_name }}"
+    number: '{{ item.num }}'
+    state: absent
+  loop: '{{ disk_info.partitions }}'
+
+- name: Remove all the partitions
+  command: sgdisk --zap-all -p "{{ disk_name }}"
+
+# - name: Wipe disk
+#   command: sfdisk --delete "{{ disk_name }}"
+
+- name: Create the partitions
+  command: |
+    sgdisk --clear -p \
+    --new=1:0:+550MiB --typecode=1:ef00 --change-name=1:EFI \
+    --new=2:0:+"{{ swapsize }}" --typecode=2:8200 --change-name=2:cryptswap \
+    --new=3:0:0       --typecode=3:8300 --change-name=3:cryptsystem \
+    "{{ disk_name }}"
+
+- name: Read device information
+  parted: device="{{ disk_name }}" unit=MiB
+  register: disk_info
+- debug: var=disk_info
+
+# #TODO: use filesystem module with partlabel
+# - name: Create a vfat filesystem for EFI
+#   filesystem:
+#     fstype: vfat
+#     dev: "{{ item }}"
+#     opts: -F32 -n EFI
+#   with_items: /dev/disk/by-partlabel/EFI
+#   #with_items: /dev/sda1/
+
+- name: Create a vfat filesystem for EFI
+  command: mkfs.fat -F32 -n EFI /dev/disk/by-partlabel/EFI
+
+# - name: Create the LUKS container; name it "system"
+#   luks_device:
+#     device: "/dev/disk/by-partlabel/cryptsystem"
+#     state: "present"
+#     name: "system"
+#     keyfile: "/mnt/secretkey"
+#     new_keyfile: "/mnt/secretkey"
+
+
+- name: Create encrypted device
+  command: cryptsetup --batch-mode luksFormat /dev/disk/by-partlabel/cryptsystem --key-file /mnt/secretkey
+
+# # also https://serverfault.com/questions/513605/how-to-non-interactively-supply-a-passphrase-to-dmcrypt-luksformat
+# - name: Create encrypted device
+#   command: printf "123" | cryptsetup --batch-mode luksFormat /dev/disk/by-partlabel/cryptsystem -
+
+# - name: open the existing LUKS container "system"
+#   luks_device:
+#     state: "opened"
+#     name: "system"
+
+- name: Open encrypted device
+  command: cryptsetup luksOpen /dev/disk/by-partlabel/cryptsystem system --key-file /mnt/secretkey
+
+# - name: Open encrypted device
+#   command: echo -n "123" | cryptsetup luksOpen /dev/disk/by-partlabel/cryptsystem system -
+
+- name: Create a btrfs filesystem
+  filesystem:
+    fstype: btrfs
+    dev: /dev/mapper/system
+    opts: --label system
+    force: yes
+
+
+#TODO: SWAP
+
+
+- name: Create mount directories for sobvolumes
+  file:
+    path: '{{ item }}'
+    state: directory
+    # mode: '0755'
+  loop:
+    - /mnt/btrfsmirror
+    - /mnt/gentoo
+    - /mnt/gentoo/home
+    - /mnt/gentoo/boot
+
+- name: Mount up root btrfs filesystem
+  mount:
+    path: /mnt/btrfsmirror
+    src: /dev/mapper/system
+    fstype: btrfs
+    opts: defaults,noatime,compress=lzo,autodefrag
+    state: mounted
+
+- name: Create activeroot subvolume
+  command: btrfs subvol create /mnt/btrfsmirror/activeroot
+
+- name: Mount up activeroot subvolume
+  mount:
+    path: /mnt/gentoo
+    src: /dev/mapper/system
+    fstype: btrfs
+    opts: defaults,noatime,compress=lzo,autodefrag,subvol=activeroot
+    state: mounted
+
+- name: Create home subvolume
+  command: btrfs subvol create /mnt/btrfsmirror/home
+
+- name: Mount up home subvolume
+  mount:
+    path: /mnt/gentoo/home
+    src: /dev/mapper/system
+    fstype: btrfs
+    opts: defaults,noatime,compress=lzo,autodefrag,subvol=home
+    state: mounted
+
+- name: Create boot subvolume
+  command: btrfs subvol create /mnt/btrfsmirror/boot
+
+- name: Mount up boot subvolume
+  mount:
+    path: /mnt/gentoo/boot
+    src: /dev/mapper/system
+    fstype: btrfs
+    opts: defaults,noatime,subvol=boot
+    state: mounted

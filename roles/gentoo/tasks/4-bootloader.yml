@@ -1,0 +1,49 @@
+
+# * Additional kernel cmdline arguments that *may* be required to boot properly...
+# * add "vga=791 splash=silent,theme:default console=tty1 quiet" if you use a splash framebuffer ]
+# * add "dolvm" for lvm support
+# * With support for several ext* filesystems available, it may be needed to
+# * add "rootfstype=ext3" or "rootfstype=ext4" to the list of boot parameters.
+
+# grub-install --target=x86_64-efi --efi-directory=/boot/efi
+
+#grub-mkconfig -o /boot/grub/grub.cfg
+
+
+- name: Install System Packages
+  command: chroot /mnt/gentoo bash -c 'env-update && source /etc/profile; etc-update && dispatch-conf ;  emerge {{ item.name }}' creates={{ item.creates }}
+  with_items:
+    - name: eix
+      creates: /mnt/gentoo/usr/bin/eix
+    - name: syslog-ng
+      creates: /mnt/gentoo/usr/sbin/syslog-ng
+    - name: cronie
+      creates: /mnt/gentoo/etc/init.d/cronie
+    - name: grub
+      creates: /mnt/gentoo/usr/sbin/grub2-install
+
+- name: Add syslog-ng to Default Run Configuration
+  command: chroot /mnt/gentoo bash -c 'rc-update add syslog-ng default'
+
+- name: Add cronie to Default Run Configuration
+  command: chroot /mnt/gentoo bash -c 'rc-update add cronie default'
+
+- name: Remount /dev to get /dev/mapper visible
+  command: mount --rbind /dev /mnt/gentoo/dev
+
+- name: Configure grub Defaults
+  copy: src=grub_default dest=/mnt/gentoo/etc/default/grub mode=0644 owner=root group=root
+
+- name: Install Grub to Boot Drive
+  command: chroot /mnt/gentoo bash -c 'env-update && source /etc/profile; etc-update && dispatch-conf ; grub-install --target=x86_64-efi --efi-directory=/boot/efi'
+
+- name: Configure Grub Make Config
+  command: chroot /mnt/gentoo bash -c 'env-update && source /etc/profile; etc-update && dispatch-conf ; grub-mkconfig -o /boot/grub/grub.cfg'
+
+- name: Set Root Password
+  command: chroot /mnt/gentoo bash -c 'env-update && source /etc/profile; etc-update && dispatch-conf ; echo "root:root" | /usr/sbin/chpasswd'
+
+
+
+
+

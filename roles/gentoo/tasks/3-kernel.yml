@@ -1,0 +1,91 @@
+- name: Pick the fastest 5 mirror
+  command: bash -c 'mirrorselect -s5 -o >> /mnt/gentoo/etc/portage/make.conf'
+  register: out
+  tags:
+    - mirror
+- debug: var=out.stdout_lines
+
+- name: emerge-webrsync
+  command: chroot /mnt/gentoo bash -c 'env-update && source /etc/profile; etc-update && dispatch-conf ; /usr/bin/emerge-webrsync  | tee /mnt/emerge-webrsync_log.txt' creates=/mnt/gentoo/usr/portage
+  tags:
+    - portage
+
+- name: Accept all licenses
+  lineinfile:
+    dest: /mnt/gentoo/etc/portage/make.conf
+    line: 'ACCEPT_LICENSE="*"'
+    # owner=foo
+    state: present
+    insertafter: EOF
+    create: True
+  tags:
+    - license
+
+#TODO: include systemd with tags?
+#TODO: firmware version should not be hardcoded
+- name: Required use flags for the packages
+  command:  echo "{{ item }}"  >> /mnt/gentoo/etc/portage/package.use
+  with_items:
+    # - sys-apps/systemd cryptsetup
+    - sys-boot/grub device-mapper
+    - sys-fs/cryptsetup static kernel -gcrypt
+    - sys-kernel/genkernel-next cryptsetup
+    # - sys-kernel/dracut systemd device-mapper
+    - sys-kernel/dracut device-mapper
+    - sys-kernel/linux-firmware linux-fw-redistributable no-source-code
+
+- name: Unmask the packages
+  command:  echo "{{ item }}"  >> /mnt/gentoo/etc/portage/package.accept_keywords
+  with_items:
+    - sys-fs/btrfs-progs ~amd64
+    - sys-boot/grub:2 ~amd64
+    - sys-fs/cryptsetup ~amd64
+    - sys-kernel/genkernel-next ~amd64
+    - sys-kernel/gentoo-sources ~amd64
+    - sys-kernel/linux-firmware ~amd64
+
+#TODO: include systemd?
+# - name: Install systemd grub:2 cryptsetup genkernel-next btrfs-progs dracut gentoo-sources linux-firmware
+#   command: chroot /mnt/gentoo bash -c 'env-update && source /etc/profile; etc-update && dispatch-conf ; emerge --verbose --autounmask-write --autounmask --keep-going systemd grub:2 cryptsetup genkernel-next btrfs-progs dracut gentoo-sources linux-firmware pciutils vim | tee -a /mnt/main_log.txt'
+#   register: out
+#   tags:
+#     - kernel
+# - debug: var=out.stdout_lines
+
+- name: Install grub:2 cryptsetup genkernel-next btrfs-progs dracut gentoo-sources linux-firmware
+  command: chroot /mnt/gentoo bash -c 'env-update && source /etc/profile; etc-update && dispatch-conf ; emerge --verbose --autounmask-write --autounmask --keep-going grub:2 cryptsetup genkernel-next btrfs-progs dracut gentoo-sources linux-firmware pciutils vim | tee -a /mnt/emerge_log.txt'
+  register: out
+  tags:
+    - packages
+- debug: var=out.stdout_lines
+
+- name: Copy Kernel Config
+  copy: src=kernel-5.4.38.config dest=/mnt/gentoo/usr/src/linux/kernel-5.4.38.config
+  tags:
+    - kernel
+
+#TODO: include systemd?
+# - name: Create the kernel using genkernel
+#   command: chroot /mnt/gentoo bash -c 'env-update && source /etc/profile; genkernel --kernel-config=/usr/src/linux/kernel-5.4.38.config --mrproper --plymouth --gpg --firmware --no-menuconfig --splash --luks --btrfs --multipath --mountboot --oldconfig --save-config --all-ramdisk-modules --bootloader=grub2 --udev --install --makeopts=-j8 all | tee /mnt/kernel_log.txt'
+#   tags:
+#     - kernel
+
+- name: Create the kernel using genkernel
+  command: chroot /mnt/gentoo bash -c 'env-update && source /etc/profile; genkernel --kernel-config=/usr/src/linux/kernel-5.4.38.config --mrproper --gpg --firmware --no-menuconfig --splash --luks --btrfs --mountboot --oldconfig --save-config --all-ramdisk-modules --bootloader=grub2 --udev --install --makeopts=-j8 all | tee /mnt/kernel_log.txt'
+  tags:
+    - kernel
+
+- name: Copy secretkey to /root/secretkey
+  copy:
+    src: /data/secretkey
+    dest: /mnt/gentoo/root/secretkey
+    # owner: root
+    # group: root
+    # mode: '0400'
+
+- name: Create a new intitramfs using dracut
+  command: chroot /mnt/gentoo bash -c 'env-update && source /etc/profile; etc-update && dispatch-conf ; dracut --early-microcode --hostonly -k /lib/modules/5.4.38-gentoo/ --kver 5.4.38-gentoo -f /boot/initramfs-5.4.38-gentoo.img -f -I /root/secretkey | tee -a /mnt/dracut_log.txt'
+  register: out
+  tags:
+    - kernel
+- debug: var=out.stdout_lines

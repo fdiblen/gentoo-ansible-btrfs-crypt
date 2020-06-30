@@ -1,0 +1,29 @@
+##TODO: make this configurable
+# - name: Select profile (17.1/desktop/plasma (stable))
+#   command: chroot /mnt/gentoo bash -c 'env-update && source /etc/profile; eselect profile set 23'
+#   tags:
+#     - chroot
+
+#TODO: ENABLE UPDATING WORLD
+# - name: set zoneinfo
+#   command: chroot /mnt/gentoo bash -c 'cp /usr/share/zoneinfo/{{ timezone }} /etc/localtime; echo "{{ timezone }}" > /etc/timezone'
+#   tags:
+#     - chroot
+
+#TODO: enable extra configuration steps below
+# - name: Copy /etc/resolv.conf
+#   command: cp --dereference /etc/resolv.conf /mnt/gentoo/etc/
+#   tags:
+#     - settings
+#
+# - name: Configure Hosts File
+#   template: src=hosts dest=/mnt/gentoo/etc/hosts
+
+# - name: Set Hostname
+#   template: src=hostname dest=/mnt/gentoo/etc/conf.d/hostname
+
+# - name: Configure Fstab
+#   copy: src=fstab dest=/mnt/gentoo/etc/fstab
+
+# - name: Create Make.conf
+#   copy: src=make.conf dest=/mnt/gentoo/etc/portage/make.conf
